@@ -1,0 +1,20 @@
+{
+  "name": "mock-types",
+  "version": "1.0.0",
+  "description": "Typeinformation for playwright mocks",
+  "main": "index.ts",
+  "scripts": {
+    "types": "npx openapi-typescript ./definition.yaml -o definition.ts"
+  },
+  "author": "Nils Michael",
+  "license": "ISC",
+  "dependencies": {
+    "openapi-fetch": "^0.14.0",
+    "playwright": "^1.55.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.55.0",
+    "@types/node": "^24.3.0",
+    "openapi-typescript": "^7.9.1"
+  }
+}
