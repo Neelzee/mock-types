@@ -24,7 +24,7 @@
  * const x : Foo<number> = "banana";
  * const y : Foo<string> = [1,2,3];
  * ```
- * This is usefull to do a "lookup" on a type family.
+ * This is useful to do a "lookup" on a type family.
  *
  * @see https://en.wikipedia.org/wiki/Type_family
  * @see https://en.wikipedia.org/wiki/Dependent_type
@@ -32,26 +32,26 @@
  * @author Nils Michael Fitjar <nilsien2001@gmail.com>
  */
 
-import { Page } from "@playwright/test";
+import { Page, Route } from "@playwright/test";
 import { paths } from "./definition";
 
 
 /**
- * ExtractHTTPMethod is type family can give us the available method on any
- * given path, specified by our specification.yaml file.
+ * ExtractHTTPMethod is type family can give us the unions of the available
+ * methods on any given path, specified by our specification.yaml file.
  *
- * This is achived by checking on a type-level, if the methods defined at
+ * This is achieved by checking on a type-level, if the methods defined at
  * path[P] are of type object, and if it is, then the type of ExtractHTTPMethod,
  * is the method, which is used both as a type and a value.
  *
  * This works since all our endpoints only have one method specified, since it
- * firsts checks if "get" is specifed, then "put", "post", etc. Since all our
+ * firsts checks if "get" is specified, then "put", "post", etc. Since all our
  * endpoints have atleast one method specified, we use the `never`-type to tell
  * TypeScript: "This case will never happen", so it can infer types easier.
  *
  * @example
  * ```ts
- * // This is infered as "get", which is the only method on that path
+ * // This is inferred as "get", which is the only method on that path
  * let lookupCustomer: ExtractHTTPMethod<"/lookup/customer">;
  * ```
  * The generic type P, is restricted, to only be the keys in the "object" paths.
@@ -60,23 +60,47 @@ import { paths } from "./definition";
  *
  * @see paths
  */
-type ExtractHTTPMethod<P extends keyof paths> = paths[P]["get"] extends object
-  ? "get"
-  : paths[P]["put"] extends object
-  ? "put"
-  : paths[P]["post"] extends object
-  ? "post"
-  : paths[P]["delete"] extends object
-  ? "delete"
-  : paths[P]["options"] extends object
-  ? "options"
-  : paths[P]["head"] extends object
-  ? "head"
-  : paths[P]["patch"] extends object
-  ? "patch"
-  : paths[P]["trace"] extends object
-  ? "trace"
-  : never;
+type ExtractHTTPMethod<P extends keyof paths>
+  = (
+    paths[P]["get"] extends object
+    ? "get"
+    : never
+  )
+  | (
+    paths[P]["put"] extends object
+    ? "put"
+    : never
+  )
+  | (
+    paths[P]["post"] extends object
+    ? "post"
+    : never
+  )
+  | (
+    paths[P]["delete"] extends object
+    ? "delete"
+    : never
+  )
+  | (
+    paths[P]["options"] extends object
+    ? "options"
+    : never
+  )
+  | (
+    paths[P]["head"] extends object
+    ? "head"
+    : never
+  )
+  | (
+    paths[P]["patch"] extends object
+    ? "patch"
+    : never
+  )
+  | (
+    paths[P]["trace"] extends object
+    ? "trace"
+    : never
+  );
 
 /**
  * ExtractResponses resolves to a union of responses from a given path P, and
@@ -106,7 +130,7 @@ type ExtractHTTPMethod<P extends keyof paths> = paths[P]["get"] extends object
 type ExtractResponses<P extends keyof paths, M extends ExtractHTTPMethod<P>> =
   // M is a method, resolved by P
   // and paths[P][M] is of type { responses: infer R },
-  // resolve ExtractResponse<P, M> to the infered type R, which is the response
+  // resolve ExtractResponse<P, M> to the inferred type R, which is the response
   paths[P][M] extends { responses: infer R } ? R : never;
 
 /**
@@ -134,29 +158,10 @@ type ResponseContent<
   : never;
 
 /**
- * MockApiArg is based on the type expected by Playwrights Route interface.
- * It extends this type, by restricting the available json and status by the
- * given path P and status code S.
- *
- * @see Route
- */
-type MockApiArg<
-  P extends keyof paths,
-  S extends keyof ExtractResponses<P, ExtractHTTPMethod<P>>
-> = {
-  body?: string | Buffer;
-  contentType?: string;
-  headers?: { [key: string]: string };
-  json?: ResponseContent<P, ExtractHTTPMethod<P>, S>;
-  path?: string;
-  status?: S;
-};
-
-/**
  * Infers the type of allowed QueryParameters on a given path.
  *
- * P is the infered path.
- * M is the infered method.
+ * P is the inferred path.
+ * M is the inferred method.
  *
  * This resolves to the query parameter object, where the keys/fields of the
  * object correspond to the query parameter, and the value, corresponds to the
@@ -172,8 +177,8 @@ type QueryParameter<P extends keyof paths> =
 /**
  * Infers the type of allowed PathParameters on a given path.
  *
- * P is the infered path.
- * M is the infered method.
+ * P is the inferred path.
+ * M is the inferred method.
  *
  * This resolves to the path parameter object, where the keys/fields of the
  * object correspond to the path parameter, and the value, corresponds to the
@@ -186,9 +191,22 @@ type PathParameter<P extends keyof paths> =
   : R
   : never;
 
+export type MockApiArg<
+  P extends keyof paths,
+  M extends ExtractHTTPMethod<P>,
+  S extends keyof ExtractResponses<P, M>,
+> = {
+  path: P;
+  status?: S;
+  method?: M;
+  json?: ResponseContent<P, ExtractHTTPMethod<P>, S>;
+  query?: QueryParameter<P>;
+  pathParam?: PathParameter<P>;
+}
+
 /**
  * @description
- * Mocks the given endpoint (url), with the given options (arg), using
+ * Mocks the given endpoint (path), with the given options, using
  * Playwrights mocking module.
  *
  * Gives type-inference based on the given path P, and the more
@@ -197,57 +215,53 @@ type PathParameter<P extends keyof paths> =
  * @example
  * ```ts
  * test(title, async ({ browser }) => {
- *  // ignoreHTTPSErrors is set to true, due to certification
- *  const ctx = await browser.newContext({ ignoreHTTPSErrors: true });
+ *  const ctx = await browser.newContext();
  *  const page = await ctx.newPage();
  *  // All that is needed to mock a 400 response.
  *  // If our response handling changes (ie. we dont just look at the status
  *  // code), you have to also specify the json
- *  await MockApi(page, "/insurance/order", { status: 400 });
+ *  await MockApi(page, { path: "/insurance/order", status: 400 });
  * }
  * ```
  *
- * For a more concrete example, look at CommonMock.
- * @see CommonMock
- *
- * @param page page object from Playwright
- * @param url endpoint to be mocked
- * @param arg mocking options
  * @returns void
  */
 const MockApi = async <
-  S extends keyof ExtractResponses<P, ExtractHTTPMethod<P>> & number,
-  P extends keyof paths
+  P extends keyof paths,
+  M extends ExtractHTTPMethod<P> = ExtractHTTPMethod<P>,
+  S extends keyof ExtractResponses<P, M> = keyof ExtractResponses<P, M>,
 >(
   page: Page,
-  path: P,
-  arg: MockApiArg<P, S>,
-  query?: QueryParameter<P>,
-  pathParam?: PathParameter<P>
+  {
+    path,
+    status,
+    json,
+    query,
+    pathParam,
+  }: MockApiArg<P, M, S>
 ): Promise<void> => {
-  let pathString = `${path.replaceAll("/", "\\/")}`;
-  if (pathParam) {
-    Object.entries(pathParam).forEach(([key, value]) => {
-      if (typeof value === "string") {
-        pathString = path.replace(`{${key}}`, encodeURIComponent(value));
-      }
-    });
-  }
-  const regex =
-    `^${process.env.NEXT_PUBLIC_BFF_BASE_URL}` +
-    pathString +
-    (query === undefined
-      ? "$"
-      : `\\?${ConstructQueryParameterString(query!)}$`);
+  const pathString: string = Object.entries(pathParam || [])
+    .reduce(
+      (acc, [k, v]) =>
+        acc.replace(`{${k}}`, encodeURIComponent(v)),
+      `${path.replaceAll("/", "\\/")}`
+    );
   return page.route(
-    new RegExp(regex),
-    async (route) => await route.fulfill(arg)
+    new RegExp(
+      `^${process.env.BASE_URL}${pathString}${(query === undefined ? "$" : `\\?${mkQParams(query!)}$`)}`
+    ),
+    async (route: Route) => await route.fulfill({
+      path,
+      json,
+      status: typeof status === "number" ? status : undefined
+    })
   );
 };
 
+
 export default MockApi;
 
-const ConstructQueryParameterString = (query: object) =>
+const mkQParams = (query: Record<string, any>) =>
   Object.entries(query)
     .map(([param, value]) => `${param}=${value}`)
     .join("&");
