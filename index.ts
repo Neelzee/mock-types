@@ -32,8 +32,8 @@
  * @author Nils Michael Fitjar <nilsien2001@gmail.com>
  */
 
-import { Page, Route } from "@playwright/test";
-import { paths } from "./definition";
+import type { Page, Route } from "@playwright/test";
+import type { paths } from "./definition";
 
 
 /**
@@ -52,7 +52,7 @@ import { paths } from "./definition";
  * @example
  * ```ts
  * // This is inferred as "get", which is the only method on that path
- * let lookupCustomer: ExtractHTTPMethod<"/lookup/customer">;
+ * let pets: ExtractHTTPMethod<"/pets/{id}">;
  * ```
  * The generic type P, is restricted, to only be the keys in the "object" paths.
  * This means the only valid "values", (string literals), of P, are the first
@@ -240,7 +240,7 @@ const MockApi = async <
     pathParam,
   }: MockApiArg<P, M, S>
 ): Promise<void> => {
-  const pathString: string = Object.entries(pathParam || [])
+  const pathString = Object.entries(pathParam || [])
     .reduce(
       (acc, [k, v]) =>
         acc.replace(`{${k}}`, encodeURIComponent(v)),
@@ -250,11 +250,12 @@ const MockApi = async <
     new RegExp(
       `^${process.env.BASE_URL}${pathString}${(query === undefined ? "$" : `\\?${mkQParams(query!)}$`)}`
     ),
-    async (route: Route) => await route.fulfill({
-      path,
-      json,
-      status: typeof status === "number" ? status : undefined
-    })
+    async (route: Route) =>
+      await route.fulfill({
+        path,
+        json,
+        status: typeof status === "number" ? status : undefined
+      })
   );
 };
 
