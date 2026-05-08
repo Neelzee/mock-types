@@ -1,5 +1,8 @@
 import { test } from '@playwright/test';
-import MockApi from "../index";
+import { paths } from "../definition";
+import { createMockApi } from "../index";
+
+const MockApi = createMockApi<paths>();
 
 /*
  * This "test" has the correct typing on the mocking
@@ -22,7 +25,7 @@ test("mocking pets", async ({ page }) => {
   await MockApi(
     page,
     {
-      path: '/pets',
+      path: "/pets",
       method: "post",
       json: {
         id: 0,
@@ -41,7 +44,8 @@ test("mocking pets", async ({ page }) => {
       method: "get",
       json: {
         id: 0,
-        name: "pet-name"
+        name: "pet-name",
+        foobar: "foobar"
       }
     }
   )
@@ -49,13 +53,11 @@ test("mocking pets", async ({ page }) => {
 
   // This is not specified in the mock, so TS will complain
   /*
-  await MockApi(
-    page,
-    "/pets",
-    {
-      status: 500,
-    }
-  )
+  await MockApi(page, {
+    path: "/pets",
+    method: "get",
+    status: 500
+  });
   */
 });
 

@@ -15,17 +15,20 @@
  *    }
  * }
  * ```
- * It is more useful for restricting arguments, than restricting return types.
+ * Type families are most useful as constraints, giving more information by
+ * _restricting_ the type based on another one.
  *
- * A dependent type, is a type that is dependent on a value
- * @example
- * ```ts
- * type Foo<A> = A extends number ? string : Array<number>;
- * const x : Foo<number> = "banana";
- * const y : Foo<string> = [1,2,3];
- * ```
- * This is useful to do a "lookup" on a type family.
- *
+ * A dependent type, is a type that is dependent on a value. Like knowning that
+ * calling a GET on /foo returns a number, but calling DELETE on /foo gives a
+ * string. Here the dependent type is the response, which is dependent on the
+ * HTTP-method we use.
+ * 
+ * It is possible to infer the response of an API-call, based on the path. This
+ * is one of the motivations behind the openapi-typescript library, which is
+ * used here to extend this type-inferrence to mocking, ensuring that when one
+ * mock API-responses, they still match the expected type of the API
+ * documentation.
+ * 
  * @see https://en.wikipedia.org/wiki/Type_family
  * @see https://en.wikipedia.org/wiki/Dependent_type
  *
@@ -33,7 +36,23 @@
  */
 
 import type { Page, Route } from "@playwright/test";
-import type { paths } from "./definition";
+
+type HttpMethod
+  = "get"
+  | "put"
+  | "post"
+  | "delete"
+  | "options"
+  | "head"
+  | "patch"
+  | "trace"
+  ;
+
+type PathItem = Partial<Record<HttpMethod, unknown>> & {
+  parmeters?: unknown;
+};
+
+type KeyPath<P> = string & keyof P
 
 
 /**
@@ -44,63 +63,19 @@ import type { paths } from "./definition";
  * path[P] are of type object, and if it is, then the type of ExtractHTTPMethod,
  * is the method, which is used both as a type and a value.
  *
- * This works since all our endpoints only have one method specified, since it
- * firsts checks if "get" is specified, then "put", "post", etc. Since all our
- * endpoints have atleast one method specified, we use the `never`-type to tell
- * TypeScript: "This case will never happen", so it can infer types easier.
- *
  * @example
  * ```ts
+ * import type { paths } from "./definition";
  * // This is inferred as "get", which is the only method on that path
- * let pets: ExtractHTTPMethod<"/pets/{id}">;
+ * let pets: ExtractHTTPMethod<paths, "/pets/{id}">;
  * ```
  * The generic type P, is restricted, to only be the keys in the "object" paths.
  * This means the only valid "values", (string literals), of P, are the first
  * level fields on the paths interface.
- *
- * @see paths
  */
-type ExtractHTTPMethod<P extends keyof paths>
-  = (
-    paths[P]["get"] extends object
-    ? "get"
-    : never
-  )
-  | (
-    paths[P]["put"] extends object
-    ? "put"
-    : never
-  )
-  | (
-    paths[P]["post"] extends object
-    ? "post"
-    : never
-  )
-  | (
-    paths[P]["delete"] extends object
-    ? "delete"
-    : never
-  )
-  | (
-    paths[P]["options"] extends object
-    ? "options"
-    : never
-  )
-  | (
-    paths[P]["head"] extends object
-    ? "head"
-    : never
-  )
-  | (
-    paths[P]["patch"] extends object
-    ? "patch"
-    : never
-  )
-  | (
-    paths[P]["trace"] extends object
-    ? "trace"
-    : never
-  );
+type ExtractHTTPMethod<Paths extends { [K in keyof Paths]: PathItem }, P extends KeyPath<Paths>> = {
+  [M in HttpMethod]: Paths[P][M] extends object ? M : never;
+}[HttpMethod];
 
 /**
  * ExtractResponses resolves to a union of responses from a given path P, and
@@ -110,16 +85,17 @@ type ExtractHTTPMethod<P extends keyof paths>
  * the given type P, (which is an endpoint). But we might want to mock different
  * responses, not just 200 OK. So ExtractResponses does not resolve to a
  * concrete type, rather it resolves to a union of the different responses
- * specified in paths, by P. But since M is resolved by P, we don't need too
+ * specified in paths, by P. But since M is resolved by P, we don't need to
  * worry about it.
  *
  * @example
  * ```ts
+ * import type { paths } from "./definition";
  * // Resolves to 200: { headers: ..., content: ... } | 400: ...
- * let status: ExtractResponses<"/insurance/order", "post">;
+ * let status: ExtractResponses<paths, "/insurance/order", "post">;
  * // but with, ExtractHTTPMethod, we don't need to define M
  * type order = "/insurance/order";
- * let coolerStatus: ExtractResponses<order, ExtractHTTPMethod<order>>;
+ * let coolerStatus: ExtractResponses<paths, order, ExtractHTTPMethod<paths, order>>;
  * ```
  *
  * These types are specified in the operations interface.
@@ -127,31 +103,38 @@ type ExtractHTTPMethod<P extends keyof paths>
  * @see ExtractHTTPMethod
  * @see operations
  */
-type ExtractResponses<P extends keyof paths, M extends ExtractHTTPMethod<P>> =
+type ExtractResponses<
+  Paths extends { [K in keyof Paths]: PathItem },
+  P extends KeyPath<Paths>,
+  M extends ExtractHTTPMethod<Paths, P>
+> =
   // M is a method, resolved by P
   // and paths[P][M] is of type { responses: infer R },
-  // resolve ExtractResponse<P, M> to the inferred type R, which is the response
-  paths[P][M] extends { responses: infer R } ? R : never;
+  // resolve ExtractResponse<Paths, P, M> to the inferred type R, which is the
+  // response
+  Paths[P][M] extends { responses: infer R } ? R : never;
 
 /**
- * Given a path P, a method M, and a response S, ResponseContent to a specific
- * type.
+ * Given Paths, a path P, a method M, and a response S, ResponseContent resolves 
+ * to a specific response type.
  *
  * This works since all the content-types of our endpoints are
  * "application/json".
  *
  * @example
  * ```ts
+ * import type { paths } from "./definition"
  * // resolves to the json-response on endpoint /insurance/order, method post
  * // and status code 200
- * let content: ResponseContent<"/insurance/order", "post", 200>;
+ * let content: ResponseContent<paths, "/insurance/order", "post", 200>;
  * ```
  */
 type ResponseContent<
-  P extends keyof paths,
-  M extends ExtractHTTPMethod<P>,
-  S extends keyof ExtractResponses<P, M>
-> = ExtractResponses<P, M>[S] extends {
+  Paths extends { [K in keyof Paths]: PathItem },
+  P extends KeyPath<Paths>,
+  M extends ExtractHTTPMethod<Paths, P>,
+  S extends keyof ExtractResponses<Paths, P, M>
+> = ExtractResponses<Paths, P, M>[S] extends {
   content: { "application/json": infer R };
 }
   ? R
@@ -161,14 +144,13 @@ type ResponseContent<
  * Infers the type of allowed QueryParameters on a given path.
  *
  * P is the inferred path.
- * M is the inferred method.
  *
  * This resolves to the query parameter object, where the keys/fields of the
  * object correspond to the query parameter, and the value, corresponds to the
  * query parameter type.
  */
-type QueryParameter<P extends keyof paths> =
-  paths[P][ExtractHTTPMethod<P>] extends { parameters: { query?: infer R } }
+type QueryParameter<Paths extends { [K in keyof Paths]: PathItem }, P extends KeyPath<Paths>> =
+  Paths[P][ExtractHTTPMethod<Paths, P>] extends { parameters: { query?: infer R } }
   ? R extends undefined
   ? never
   : R
@@ -178,58 +160,36 @@ type QueryParameter<P extends keyof paths> =
  * Infers the type of allowed PathParameters on a given path.
  *
  * P is the inferred path.
- * M is the inferred method.
  *
  * This resolves to the path parameter object, where the keys/fields of the
  * object correspond to the path parameter, and the value, corresponds to the
  * path parameter type.
  */
-type PathParameter<P extends keyof paths> =
-  paths[P][ExtractHTTPMethod<P>] extends { parameters: { path?: infer R } }
+type PathParameter<Paths extends { [K in keyof Paths]: PathItem }, P extends KeyPath<Paths>> =
+  Paths[P][ExtractHTTPMethod<Paths, P>] extends { parameters: { path?: infer R } }
   ? R extends undefined
   ? never
   : R
   : never;
 
 export type MockApiArg<
-  P extends keyof paths,
-  M extends ExtractHTTPMethod<P>,
-  S extends keyof ExtractResponses<P, M>,
+  Paths extends { [K in keyof Paths]: PathItem },
+  P extends KeyPath<Paths>,
+  M extends ExtractHTTPMethod<Paths, P>,
+  S extends keyof ExtractResponses<Paths, P, M>,
 > = {
   path: P;
   status?: S;
   method?: M;
-  json?: ResponseContent<P, ExtractHTTPMethod<P>, S>;
-  query?: QueryParameter<P>;
-  pathParam?: PathParameter<P>;
+  json?: ResponseContent<Paths, P, ExtractHTTPMethod<Paths, P>, S>;
+  query?: QueryParameter<Paths, P>;
+  pathParam?: PathParameter<Paths, P>;
 }
 
-/**
- * @description
- * Mocks the given endpoint (path), with the given options, using
- * Playwrights mocking module.
- *
- * Gives type-inference based on the given path P, and the more
- * specific the arg is, the more type-inference is given.
- *
- * @example
- * ```ts
- * test(title, async ({ browser }) => {
- *  const ctx = await browser.newContext();
- *  const page = await ctx.newPage();
- *  // All that is needed to mock a 400 response.
- *  // If our response handling changes (ie. we dont just look at the status
- *  // code), you have to also specify the json
- *  await MockApi(page, { path: "/insurance/order", status: 400 });
- * }
- * ```
- *
- * @returns void
- */
-const MockApi = async <
-  P extends keyof paths,
-  M extends ExtractHTTPMethod<P> = ExtractHTTPMethod<P>,
-  S extends keyof ExtractResponses<P, M> = keyof ExtractResponses<P, M>,
+export const createMockApi = <Paths extends { [K in keyof Paths]: PathItem }>() => async <
+  P extends KeyPath<Paths> = KeyPath<Paths>,
+  M extends ExtractHTTPMethod<Paths, P> = ExtractHTTPMethod<Paths, P>,
+  S extends keyof ExtractResponses<Paths, P, M> = keyof ExtractResponses<Paths, P, M>,
 >(
   page: Page,
   {
@@ -238,7 +198,7 @@ const MockApi = async <
     json,
     query,
     pathParam,
-  }: MockApiArg<P, M, S>
+  }: MockApiArg<Paths, P, M, S>
 ): Promise<void> => {
   const pathString = Object.entries(pathParam || [])
     .reduce(
@@ -258,9 +218,6 @@ const MockApi = async <
       })
   );
 };
-
-
-export default MockApi;
 
 const mkQParams = (query: Record<string, any>) =>
   Object.entries(query)
