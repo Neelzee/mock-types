@@ -7,7 +7,7 @@
     "types": "npx openapi-typescript ./definition.yaml -o definition.ts"
   },
   "author": "Nils Michael",
-  "license": "ISC",
+  "license": "MIT",
   "dependencies": {
     "openapi-fetch": "^0.14.0",
     "playwright": "^1.55.0"
