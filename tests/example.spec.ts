@@ -35,16 +35,17 @@ test("mocking pets", async ({ page }) => {
   );
 
   // This is not a valid mock, since the response we've specified in the json
-  // field does not match anything in the specification
+  // field does not match the specification, due to our method being get, but
+  // this does not match the object we are passing
   await MockApi(
     page,
     {
       path: '/pets',
       method: "get",
       json: {
+        // @ts-ignore
         id: 0,
         name: "pet-name",
-        // @ts-ignore
         foobar: "foobar"
       }
     }
