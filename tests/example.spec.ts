@@ -36,7 +36,6 @@ test("mocking pets", async ({ page }) => {
 
   // This is not a valid mock, since the response we've specified in the json
   // field does not match anything in the specification
-  /*
   await MockApi(
     page,
     {
@@ -45,19 +44,18 @@ test("mocking pets", async ({ page }) => {
       json: {
         id: 0,
         name: "pet-name",
+        // @ts-ignore
         foobar: "foobar"
       }
     }
   )
-  */
 
-  // This is not specified in the mock, so TS will complain
-  /*
+  // The status code 500 is not specified in the mock, so TS will complain
   await MockApi(page, {
     path: "/pets",
     method: "get",
+    // @ts-ignore
     status: 500
   });
-  */
 });
 
