@@ -136,11 +136,15 @@ type ResponseContent<
   S extends keyof ExtractResponses<Paths, P, M>,
   CT extends keyof ContentTypes,
 > =
-  ExtractResponses<Paths, P, M>[S] extends {
-    content: { [K in CT]: infer R };
-  }
-  ? R
-  : never;
+  M extends ExtractHTTPMethod<Paths, P>
+    ? S extends keyof ExtractResponses<Paths, P, M>
+      ? ExtractResponses<Paths, P, M>[S] extends {
+          content: { [K in CT]: infer R };
+        }
+        ? R
+        : never
+      : never
+    : never;
 
 type ContentTypes = {
   "application/json": 0;
@@ -225,7 +229,7 @@ export type MockApiArg<
   status?: S;
   method?: M;
   contentType?: CT;
-  json?: ResponseContent<Paths, P, ExtractHTTPMethod<Paths, P>, S, CT>;
+  json?: ResponseContent<Paths, P, M, S, CT>;
   query?: QueryParameter<Paths, P>;
   pathParam?: PathParameter<Paths, P>;
 }
