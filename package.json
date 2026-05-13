@@ -10,10 +10,10 @@
   "license": "MIT",
   "dependencies": {
     "openapi-fetch": "^0.14.0",
-    "playwright": "^1.55.0"
+    "playwright": "1.59.1"
   },
   "devDependencies": {
-    "@playwright/test": "^1.55.0",
+    "@playwright/test": "1.59.1",
     "@types/node": "^24.12.3",
     "openapi-typescript": "^7.9.1"
   }
